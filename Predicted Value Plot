@@ -1,0 +1,40 @@
+####Party_identification####
+anes <- data.frame('age'=anes_raw$V161267)
+anes$party_id <- cleanlevel(anes_raw$V161158x)
+summary(anes$party_id)
+anes[which(anes$party_id %in% levels(anes$party_id)[c(1,2)]),'party_id'] <- NA
+anes$party_id <- droplevels(anes$party_id)
+anes$party_scale <- 0
+anes[which(anes$party_id == 'Strong Democrat'), 'party_scale'] <- -3
+anes[which(anes$party_id == 'Not very strong Democract'), 'party_scale'] <- -2
+anes[which(anes$party_id == 'Independent-Democrat'), 'party_scale'] <- -1
+anes[which(anes$party_id == 'Independent'), 'party_scale'] <- 0
+anes[which(anes$party_id == 'Independent Republican'), 'party_scale'] <- 1
+anes[which(anes$party_id == 'Not very strong Republican'), 'party_scale'] <- 2
+anes[which(anes$party_id == 'Strong Republican'), 'party_scale'] <- 3
+summary(anes$party_scale)
+
+####Answers to factual question on Obamacare####
+anes$obama <- cleanlevel(anes_raw$V162143)
+summary(anes$obama)
+anes[which(anes$obama %in% levels(anes$obama)[c(1:4)]),'obama'] <- NA
+anes$obama <- droplevels(anes$obama)
+anes$obama_scale <- 0
+anes[which(anes$obama == 'Increased'), 'obama_scale'] <- 1
+anes[which(anes$obama == 'Decreased'), 'obama_scale'] <- -1
+anes[which(anes$obama == 'Had no effect'), 'obama_scale'] <- 0
+summary(anes$obama_scale)
+
+####Predicted value plot####
+m1 <- lm(anes$obama_scale ~ anes$party_scale, data = anes)
+newdata_m1 <- data.frame('party_scale'=1:7)
+m1_pred <- data.frame(
+  predict(m1, newdata=newdata_m1, se.fit=TRUE)
+)
+newdata_m1 <- cbind(newdata_m1,m1_pred)
+head(newdata_m1)
+newdata_m1$upr <- newdata_m1$fit + 1.98*newdata_m1$se.fit
+newdata_m1$lwr <- newdata_m1$fit - 1.98*newdata_m1$se.fit
+ggplot(newdata_m1, aes(x=party_scale,y=fit)) +
+  geom_line() +
+  geom_ribbon(aes(ymin=lwr,ymax=upr), alpha=0.5)
