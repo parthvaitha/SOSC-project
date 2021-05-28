@@ -1,0 +1,463 @@
+####Packages####
+library(foreign)
+library(ggplot2)
+install.packages("dotwhisker")
+library(dotwhisker)
+library(broom)
+library(survey)
+library(stargazer)
+library(xtable)
+library(tidyverse)
+library(haven)
+library(knitr)
+install.packages("ggiraphExtra")
+library(ggiraphExtra)
+install.packages("psych", dependencies = TRUE)
+install.packages("psych", repos="http://personality-project.org/r", type="source" )
+library(psych)
+options(xtable.comment=FALSE)
+########
+
+####READ FILE####
+ANES_PATH <- 'D:/Parth Vaitha/UChicago/Social Science Inquiry/Spring Quarter/data/anes_timeseries_2020_stata_20210324.dta'
+anes_raw <- read_dta(file = "anes_timeseries_2020_stata_20210324.dta")
+
+
+####HELPFUL FUNCTIONS####
+discretize <- function(var1) {
+  newvar <- var1  
+  levels(newvar) <- sapply(levels(var1),
+                           function (x) sub('([0-9-]{1,3}). [a-zA-Z0-9() \',-]
++','\\1',x))  
+  return (as.numeric(as.character(newvar)))
+}
+zscore <- function (x) {
+  zscores <- (x - mean(x, na.rm=TRUE))/sd(x, na.rm=TRUE)  
+  return (zscores)} 
+# see also: ?scale()
+cleanlevel <- function(x) {
+  newlevels <- sapply(levels(x),
+                      function (x) sub('[0-9-]{1,3}. ','',x))  
+  return (droplevels(factor(x, levels=levels(x), labels=newlevels)))
+}
+########
+
+####BUILDING DATA FRAME####
+#Age#
+anes <- data.frame('age'=anes_raw$V201507x)
+anes[which(anes$age < 0), 'age'] <- NA
+########
+
+####Index for voting fraud belief####
+#Votes counted accurately#
+anes$trust_count <- anes_raw$V201351
+summary(anes$trust_count)
+anes[which(anes$trust_count < 0), 'trust_count'] <- NA
+
+#trust election officials#
+anes$trust_off <- anes_raw$V201352
+anes[which(anes$trust_off < 0), 'trust_off'] <- NA
+
+#Creating Index
+anes$vf_belief <- (anes$trust_count == 1) +
+  (anes$trust_off == 1) 
+summary(anes$vf_belief)
+sd(anes$vf_belief, na.rm = TRUE)
+NROW(anes$vf_belief)
+
+#Reliability test#
+anes$no_trust_count <- anes$trust_count == 1
+anes$no_trust_off <- anes$trust_off == 1
+anes$fav_id <- anes$id_fav == 1
+glb.fa(anes[,c('no_trust_count','no_trust_off')])
+########
+
+####Index for political participation####
+#Wear Campaign button or post sign or Bumper Sticker#
+anes$sign <- anes_raw$V202015
+anes[which(anes$sign < 0), 'sign'] <- NA
+
+#Contributed Money to political campaign during this election year#
+anes$don <- anes_raw$V202019
+anes[which(anes$don < 0), 'don'] <- NA
+
+#Joined Protest, march, rally, demonstration in last 12 months#
+anes$protest <- anes_raw$V202025
+anes[which(anes$protest < 0), 'protest'] <- NA
+
+#Contacted a Politician#
+anes$contact <- anes_raw$V202030
+anes[which(anes$contact < 0), 'contact'] <- NA
+
+#Did R vote for November 2020 election#
+anes$voted <- anes_raw$V202066
+anes[which(anes$voted < 0), 'voted'] <- NA
+summary(anes$voted)
+
+#Building Index of political participation#
+anes$participate <- (anes$voted == 4) +
+  (anes$contact == 1) +
+  (anes$protest == 1) +
+  (anes$don == 1) +
+  (anes$sign == 1)
+summary(anes$participate)
+
+#Reliability Test#
+anes$I_voted <- anes$voted == 4
+anes$I_contact <- anes$contact == 1
+anes$I_protest <- anes$protest == 1
+anes$I_don <- anes$don == 1
+anes$I_sign <- anes$sign ==1
+glb.fa(anes[,c('I_voted','I_contact','I_protest', 'I_don', 'I_sign')])
+########
+
+####D2####
+#Are you satisfied  with how democracy works in the USA#
+anes$dem_good <- anes_raw$V202440
+anes[which(anes$dem_good < 0), 'dem_good'] <- NA
+anes$dem_good <- as.numeric(anes$dem_good)
+anes$dem_good <- -anes$dem_good + 5
+summary(anes$dem_good)
+########
+
+####I2####
+
+#Is R required to show Photo ID to vote#
+anes$photoID_req <- anes_raw$V201364
+anes[which(anes$photoID_req < 0), 'photoID_req'] <- NA
+anes$photoID_req <- as.numeric(anes$photoID_req)
+summary(anes$photoID_req)
+
+########
+
+####Tables####
+#D1#
+tabled1 <- summary(anes$participate)
+NROW(anes$participate)
+sd(anes$participate, na.rm=TRUE)
+tabled1
+kable(tabled1)
+#I1#
+summary(anes$vf_belief)
+#D2#
+summary(anes$dem_good)
+#I2#
+summary(anes$photoID_req)
+########
+
+####Graphs####
+#D1#
+hist(anes$participate, 
+     breaks=4, 
+     main = "Frequency Barplot of Political Participation", 
+     xlab = "Index of Political Participation",
+     ylab = "Frequency",
+     ylim = c(0, 5000))
+
+#I1#
+ggplot(anes, aes(vf_belief)) + 
+  theme_bw() +
+  geom_bar() +
+  scale_fill_manual(values=c("#E69F00","#E69F00", "#E69F00")) +
+  ggtitle("Frequency Barplot of Belief in Voter Fraud") + 
+  xlab("Index of Belief in Voter Fraud") + 
+  ylab("Frequency") 
+
+#D2#
+ggplot(anes, aes(dem_good)) +
+  theme_bw() +
+  geom_bar() +
+  scale_fill_brewer(palette="Dark2") +
+  ggtitle("Frequency Barplot of Satisfaction with American Democracy") +
+  xlab("Scale of Satisfaction") +
+  ylab("Frequency") +
+  scale_x_discrete(labels = c("Very satisfied", 
+                              "Fairly satisfied", 
+                              "Not very satisfied",
+                              "Not at all satisfied"),
+                   na.translate = FALSE) 
+
+#I2#
+ggplot(anes, aes(photoID_req)) +
+  geom_bar() +
+  theme_bw() +
+  ggtitle("Frequency of Photo ID requirement") +
+  xlab("Were you required to show photo ID to vote?") +
+  ylab("Frequency") +
+  scale_x_discrete(labels = c("Yes",
+                              "No",
+                              "Unsure"),
+                   na.translate = FALSE)
+
+
+
+tableH1 <- table(anes$participate, anes$vf_belief)
+addmargins(tableH1)
+proptableH1 <- prop.table(tableH1, 2)
+addmargins(proptableH1)
+barplot(proptableH1, 
+        main="Barplot of Crosstabulation for Hypothesis 1",
+        xlab="Index of Belief in voter fraud",
+        ylab="Proportion of types of political participants",
+        col = c("black", 
+                "blue", 
+                "blueviolet", 
+                "darkred", 
+                "chocolate", 
+                "darkgoldenrod"))
+
+
+tableH2 <- table(anes$dem_good, anes$vf_belief)
+proptableH2 <- prop.table(tableH2, 2)
+addmargins(proptableH2)
+barplot(proptableH2,
+        main="Barplot of Crosstabulation for Hypothesis 2",
+        xlab="Index of Belief in Voter fraud",
+        ylab="Satisfaction in democracy by Proportion",
+        ylim = c(0, 1.5),
+        col = c("darkorchid",
+                "firebrick1",
+                "darkorange",
+                "gold"))
+        legend("topright",
+               c("Very Satisfied",
+                 "Fairly Satisfied",
+                 "Not very satisfied",
+                 "Not at all satisfied"),
+               fill = c("darkorchid",
+                        "firebrick1",
+                        "darkorange",
+                        "gold"),
+               cex = 0.60)
+
+
+tableH3 <- table(anes$dem_good, anes$photoID_req)
+proptableH3 <- prop.table(tableH3, 2)
+addmargins(proptableH3)
+barplot(proptableH3,
+        main="Barplot of Crosstabulation for Hypothesis 3",
+        xlab="Was Photo ID required to Vote?",
+        ylab="Satisfaction in democracy by Proportion",
+        ylim = c(0, 1.5),
+        names.arg = c("Yes",
+                      "No",
+                      "Unsure"),
+        col = c("darkorchid",
+                "firebrick1",
+                "darkorange",
+                "gold"))
+legend("topright",
+       c("Very Satisfied",
+         "Fairly Satisfied",
+         "Not very satisfied",
+         "Not at all satisfied"),
+       fill = c("darkorchid",
+                "firebrick1",
+                "darkorange",
+                "gold"),
+       cex = 0.60)
+
+barplot(tableH3)
+########
+
+####Confounders####
+#Party Identification#
+anes$party_id <- anes_raw$V201231x
+anes[which(anes$party_id < 0), 'party_id'] <- NA
+anes[which(anes$party_id ==5), "party_id"] <- NA
+anes[which(anes$party_id ==6), "party_id"] <- NA
+anes[which(anes$party_id ==7), "party_id"] <- NA
+summary(anes$party_id)
+anes$party_id_dem <- 4 - anes$party_id
+summary(anes$party_id_dem)
+
+anes$party_id <- anes_raw$V201231x
+anes[which(anes$party_id < 0), 'party_id'] <- NA
+anes[which(anes$party_id ==1), "party_id"] <- NA
+anes[which(anes$party_id ==2), "party_id"] <- NA
+anes[which(anes$party_id ==3), "party_id"] <- NA
+anes$party_id_rep <- anes$party_id - 4
+summary(anes$party_id_rep)
+
+NROW(anes$party_id)
+sd(anes$party_id, na.rm = TRUE)
+
+#Did party contact R
+anes$cont <- anes_raw$V202004
+anes[which(anes$cont < 0), 'cont'] <- NA
+summary(anes$cont)
+NROW(anes$cont)
+
+#Anyone talk to R about voting
+anes$talk <- anes_raw$V202008
+anes[which(anes$talk < 0), 'talk'] <- NA
+summary(anes$talk)
+cor.test(anes$talk, anes$party_id_dem)
+cor.test(anes$talk, anes$party_id_rep)
+
+#Worked with other to solve issue facing community
+anes$comm <- anes_raw$V202031
+anes[which(anes$comm < 0), 'comm'] <- NA
+summary(anes$comm)
+cor.test(anes$comm, anes$party_id_dem)
+cor.test(anes$comm, anes$party_id_rep)
+
+#Education#
+anes$edu <- anes_raw$V201510
+anes[which(anes$edu < 0), 'edu'] <- NA
+anes[which(anes$edu > 10), 'edu'] <- NA
+summary(anes$edu)
+
+#Income#
+anes$income <- anes_raw$V201617x
+anes[which(anes$income < 0), 'income'] <- NA
+anes[which(anes$income > 25), 'income'] <- NA
+summary(anes$income)
+
+#Feeling Thermometer for Donald Trump#
+anes$ft_trump <- anes_raw$V201152
+anes[which(anes$ft_trump < 0), 'ft_trump'] <- NA
+summary(anes$ft_trump)
+
+########
+
+####Regression####
+#Regression1#
+regression10 <- lm(participate ~ vf_belief + party_id_dem + photoID_req + edu + income + cont + talk + comm + age, data = anes)
+regression11 <- lm(voted ~ vf_belief + party_id_dem + photoID_req + edu + income + cont + talk + comm + age, data = anes) 
+regression12 <- lm(participate ~ vf_belief + party_id_rep + photoID_req + edu + income + cont + talk + comm + age, data = anes)
+regression13 <- lm(voted ~ vf_belief + party_id_rep + photoID_req + edu + income + cont + talk + comm + age, data = anes) 
+
+stargazer(regression10, regression11, regression12, regression13,
+          type = "html", 
+          out = "D:/Parth Vaitha/UChicago/Social Science Inquiry/Spring Quarter/R code for project/trialregressionH1,3.htm",
+          title = "Regression Table for Hypotheses 1 & 3",
+          dep.var.caption = "Index of Political Participation",
+          covariate.labels = c("Belief in Voter Fraud", 
+                               "Strength of Party Identification (Democrat)",
+                               "Strength of Party Identification (Republican)",
+                               "Photo ID required to vote",
+                               "Highest Education Level",
+                               "Income",
+                               "Contacted by Political Party",
+                               "Spoken to about voting",
+                               "Working to solve Problem in community",
+                               "Age"),
+          notes.label = "Significance levels")
+
+r10p <- tidy(regression11, conf.int = TRUE)
+r10p
+r10p$std.error <- NULL
+r10p$statistic <- NULL
+r10p$p.value <- NULL
+r10p <- r10p[-c(1,3,5,6,7,8,9,10),]
+r12p <- tidy(regression12, conf.int = TRUE)
+ggplot(r10p, aes(term, estimate)) +
+  geom_point() +
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high), 
+                  color="blue", 
+                  fill="white", 
+                  shape=22,
+                  width=0.2, 
+                  size=1) +
+  labs(title = "H1 & H3 Coefficient Plot for Democrats")+
+  scale_x_discrete(labels=c("photoID_req" = "Photo ID Required", "vf_belief" = "Belief in Voter Fraud")) +
+  ylab("Coefficient Estimate")+
+  xlab("Variable of Interest")+
+  theme_bw()
+
+r13p <- tidy(regression13, conf.int = TRUE)
+r13p
+r13p$std.error <- NULL
+r13p$statistic <- NULL
+r13p$p.value <- NULL
+r13p <- r13p[-c(1,3,5,6,7,8,9,10),]
+ggplot(r13p, aes(term, estimate)) +
+  geom_point() +
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high), 
+                  color="red", 
+                  fill="white", 
+                  shape=22,
+                  width=0.2, 
+                  size=1) +
+  labs(title = "H1 & H3 Coefficient Plot for Republicans")+
+  scale_x_discrete(labels=c("photoID_req" = "Photo ID Required", "vf_belief" = "Belief in Voter Fraud")) +
+  ylab("Coefficient Estimate")+
+  xlab("Variable of Interest")+
+  theme_bw()
+
+
+
+regression21 <- lm(dem_good ~ vf_belief + party_id_dem + photoID_req + edu + income + ft_trump, data = anes)
+regression22 <- lm(dem_good ~ vf_belief + party_id_rep + photoID_req + edu + income + ft_trump, data = anes)
+
+newdata_mt <- data.frame('vf_belief'=c(0,0.25,0.5,0.75,1,1.25,1.5,1.75,2), 
+                         'party_id_dem'=c(rep(1.80, 9)),
+                         'party_id_rep'=c(rep(1.75, 9)),
+                         'photoID_req'=c(rep(1.54, 9)),
+                         'edu'=c(rep(4.53, 9)), 
+                         'income'=c(rep(11.8, 9)),
+                         'ft_trump'=c(rep(40.4, 9)))
+
+reg1_pred <- data.frame(
+  predict(regression21, newdata = newdata_m1, se.fit=TRUE)
+)
+newdata_m1 <- cbind(newdata_m1, reg1_pred)
+head(newdata_m1)
+newdata_m1$upr <- newdata_m1$fit + 1.98*newdata_m1$se.fit
+newdata_m1$lwr <- newdata_m1$fit - 1.98*newdata_m1$se.fit
+
+reg2_pred <- data.frame(
+  predict(regression22, newdata = newdata_mt, se.fit=TRUE)
+)
+newdata_mt <- cbind(newdata_mt, reg2_pred)
+head(newdata_mt)
+newdata_mt$upr <- newdata_mt$fit + 1.98*newdata_mt$se.fit
+newdata_mt$lwr <- newdata_mt$fit - 1.98*newdata_mt$se.fit
+
+ggplot(newdata_m1, aes(x=vf_belief, y=fit)) +
+  geom_line(colour = "blue") +
+  geom_ribbon(aes(ymin=lwr,ymax=upr), alpha=0.5, fill = "deepskyblue") +
+  xlab("Belief in Voter Fraud") +
+  ylab("Satisfaction with Democracy") +
+  ggtitle("Plot of H2 Predicted Values for Democrats") +
+  theme_bw()
+
+ggplot(newdata_mt, aes(x=vf_belief, y=fit)) +
+  geom_line(colour = "red") +
+  geom_ribbon(aes(ymin=lwr,ymax=upr), alpha=0.5, fill = "firebrick3") +
+  xlab("Belief in Voter Fraud") +
+  ylab("Satisfaction with Democracy") +
+  ggtitle("Plot of H2 Predicted Values for Republicans") +
+  theme_bw()
+
+rlang::last_trace()
+?geom_line
+
+stargazer(regression21, regression22, 
+          type = "html", 
+          out = "D:/Parth Vaitha/UChicago/Social Science Inquiry/Spring Quarter/R code for project/regressionH2.htm",
+          title = "Regression Table for Hypothesis 2",
+          dep.var.caption = "Satisfaction with Democracy",
+          covariate.labels = c("Belief in Voter Fraud", 
+                               "Strength of Party Identification (Democrat)",
+                               "Strength of Party Identification (Republican)",
+                               "Photo ID required to Vote",
+                               "Highest Education Level",
+                               "Income",
+                               "Donald Trump Feeling Thermometer"),
+          notes.label = "Significance levels")
+
+
+stargazer(anes, type = "text", title="Descriptive statistics", digits=1, out="D:/Parth Vaitha/UChicago/Social Science Inquiry/Spring Quarter/R code for project/summartstats#2.htm")
+
+plot(regression10)
+########
+####Diagnostic Plots####
+plot(regression10)
+plot(regression11)
+plot(regression12)
+plot(regression13)
+plot(regression21)
+plot(regression22)
+########
